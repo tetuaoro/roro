@@ -1,0 +1,124 @@
+# generated: 2025-01-15T00:00:00Z
+# last_updated: 2025-01-15T00:00:00Z
+# project: roro
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /home/tetuaoro/code/mistral-vibe/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog -> in-progress: Automatically when first story is created (via create-story)
+#   - in-progress -> done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2025-01-15T00:00:00Z
+last_updated: 2025-01-15T00:00:00Z
+project: roro
+project_key: NOKEY
+tracking_system: file-system
+story_location: /home/tetuaoro/code/mistral-vibe/_bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1: Foundation - Local Provider Connection
+  epic-1: backlog
+  1-1-initialize-rust-project-structure: backlog
+  1-2-create-configuration-module-with-layered-loading: backlog
+  1-3-implement-provider-client-with-openai-api-rust: backlog
+  1-4-add-provider-connectivity-validation: backlog
+  1-5-implement-auto-detection-of-provider-capabilities: backlog
+  1-6-add-provider-switching-functionality: backlog
+  1-7-implement-model-download-and-version-management: backlog
+  1-8-add-interactive-setup-command: backlog
+  1-9-implement-provider-timeout-handling-with-retry: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2: Conversation Core (MVP)
+  epic-2: backlog
+  2-1-implement-basic-cli-entry-points: backlog
+  2-2-implement-interactive-chat-interface: backlog
+  2-3-add-scrollable-conversation-history-pane: backlog
+  2-4-add-syntax-highlighting-for-code-blocks: backlog
+  2-5-auto-save-conversation-history: backlog
+  2-6-support-stdin-piping-for-programmatic-mode: backlog
+  2-7-output-responses-in-json-format: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Tool Execution Framework
+  epic-3: backlog
+  3-1-create-tool-registry-with-permission-system: backlog
+  3-2-implement-shell-command-execution-tool: backlog
+  3-3-add-command-palette-access-via-slash-prefix: backlog
+  3-4-validate-tool-arguments-before-execution: backlog
+  3-5-log-all-tool-executions-for-audit: backlog
+  3-6-handle-keyboard-interrupts-gracefully: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Session Persistence
+  epic-4: backlog
+  4-1-implement-session-save-and-resume: backlog
+  4-2-list-and-delete-saved-sessions: backlog
+  4-3-persist-session-metadata: backlog
+  4-4-preserve-session-state-during-error-recovery: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Complete CLI Interface
+  epic-5: backlog
+  5-1-implement-all-cli-flags-and-arguments: backlog
+  5-2-add-shell-completion-scripts: backlog
+  5-3-implement-appropriate-exit-codes: backlog
+  5-4-support-ci-cd-pipeline-usage: backlog
+  5-5-handle-batch-processing-of-multiple-prompts: backlog
+  5-6-stream-responses-in-newline-delimited-json: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: Rich TUI Experience
+  epic-6: backlog
+  6-1-implement-multi-pane-layout: backlog
+  6-2-add-customizable-keyboard-shortcuts: backlog
+  6-3-navigate-between-panes-using-keyboard: backlog
+  6-4-make-error-line-numbers-clickable: backlog
+  6-5-display-session-metadata-in-tui: backlog
+  6-6-show-provider-status-indicators: backlog
+  6-7-view-tool-execution-results-in-dedicated-pane: backlog
+  6-8-display-clear-actionable-error-messages: backlog
+  6-9-provide-troubleshooting-suggestions: backlog
+  6-10-auto-recover-from-provider-connection-loss: backlog
+  6-11-detect-and-warn-about-resource-exhaustion: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Advanced Configuration & Admin
+  epic-7: backlog
+  7-1-create-toml-configuration-file-structure: backlog
+  7-2-support-environment-variable-overrides: backlog
+  7-3-expand-environment-variables-in-config-values: backlog
+  7-4-support-custom-config-file-via-config-flag: backlog
+  7-5-validate-configuration-on-startup: backlog
+  7-6-configure-multiple-provider-profiles: backlog
+  7-7-configure-tool-permission-presets: backlog
+  7-8-load-config-from-multiple-sources-with-precedence: backlog
+  7-9-access-files-within-trusted-directories: backlog
+  7-10-respect-gitignore-and-vibeignore-for-file-operations: backlog
+  epic-7-retrospective: optional
