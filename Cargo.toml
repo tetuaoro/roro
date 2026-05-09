@@ -5,3 +5,6 @@ edition = "2024"
 description = "Minimal, fast, and efficient CLI agent."
 
 [dependencies]
+ratatui = "0.30.0"
+color-eyre = "0.6.5"
+openai_api_rust = "0.1.9"
