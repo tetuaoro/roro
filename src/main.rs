@@ -1,4 +1,5 @@
 mod cli;
+mod tui;
 
 use cli::RoroCli;
 
