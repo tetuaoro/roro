@@ -1,33 +1,27 @@
 use std::sync::{Arc, Mutex};
 
 use color_eyre::Result;
-
 use ollama_rs::{
     Ollama,
     generation::chat::{ChatMessage, request::ChatMessageRequest},
     models::ModelOptions,
 };
-
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
-    layout::{Constraint, Layout, Position},
-    style::{Color, Style},
-    text::{Line, Span, Text},
-    widgets::{Block, List, ListItem, Paragraph, Wrap},
+    layout::{Constraint, Layout},
+    widgets::Block,
 };
-
+use ratatui_textarea::{Input, TextArea};
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
 /// App holds the state of the application
 pub struct App {
-    /// Current value of the input box
-    input: String,
-    /// Position of cursor in the editor area
-    character_index: usize,
-    /// History of recorded messages
-    messages: Vec<String>,
+    /// TextArea for user input
+    input: TextArea<'static>,
+    /// TextArea for displaying messages (read-only)
+    messages_area: TextArea<'static>,
     /// Ollama client
     ollama: Ollama,
     /// Shared chat history
@@ -50,10 +44,20 @@ impl App {
         model_options: ModelOptions,
     ) -> Self {
         let (sender, receiver) = mpsc::channel(32);
+
+        // Initialize input TextArea
+        let mut input = TextArea::default();
+        input.set_block(Block::bordered().title("Prompt"));
+        input.set_cursor_line_style(ratatui::style::Style::default());
+
+        // Initialize messages TextArea (read-only)
+        let mut messages_area = TextArea::default();
+        messages_area.set_block(Block::bordered().title("Messages"));
+        messages_area.set_cursor_line_style(ratatui::style::Style::default());
+
         Self {
-            input: String::new(),
-            messages: Vec::new(),
-            character_index: 0,
+            input,
+            messages_area,
             ollama,
             history,
             sender,
@@ -63,59 +67,17 @@ impl App {
         }
     }
 
-    fn move_cursor_left(&mut self) {
-        let cursor_moved_left = self.character_index.saturating_sub(1);
-        self.character_index = self.clamp_cursor(cursor_moved_left);
-    }
-
-    fn move_cursor_right(&mut self) {
-        let cursor_moved_right = self.character_index.saturating_add(1);
-        self.character_index = self.clamp_cursor(cursor_moved_right);
-    }
-
-    fn enter_char(&mut self, new_char: char) {
-        let index = self.byte_index();
-        self.input.insert(index, new_char);
-        self.move_cursor_right();
-    }
-
-    fn byte_index(&self) -> usize {
-        self.input
-            .char_indices()
-            .map(|(i, _)| i)
-            .nth(self.character_index)
-            .unwrap_or(self.input.len())
-    }
-
-    fn delete_char(&mut self) {
-        let is_not_cursor_leftmost = self.character_index != 0;
-        if is_not_cursor_leftmost {
-            let current_index = self.character_index;
-            let from_left_to_current_index = current_index - 1;
-            let before_char_to_delete = self.input.chars().take(from_left_to_current_index);
-            let after_char_to_delete = self.input.chars().skip(current_index);
-            self.input = before_char_to_delete.chain(after_char_to_delete).collect();
-            self.move_cursor_left();
-        }
-    }
-
-    fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
-        new_cursor_pos.clamp(0, self.input.chars().count())
-    }
-
-    fn reset_cursor(&mut self) {
-        self.character_index = 0;
-    }
-
     fn submit_message(&mut self) {
-        if self.input.is_empty() {
+        let input = self.input.lines().join("\n");
+        if input.is_empty() {
             return;
         }
 
-        let input = self.input.clone();
-        self.messages.push(format!("You: {}", input));
-        self.input.clear();
-        self.reset_cursor();
+        // Add user message to the messages area
+        self.messages_area.insert_str(&format!("You: {}\n", input));
+
+        // Clear input
+        self.input.delete_line_by_end();
 
         let ollama = self.ollama.clone();
         let history = self.history.clone();
@@ -174,15 +136,7 @@ impl App {
         loop {
             // Process incoming messages from Ollama
             while let Ok(msg) = self.receiver.try_recv() {
-                if let Some(last_msg) = self.messages.last_mut() {
-                    if last_msg.starts_with("Assistant:") {
-                        *last_msg = format!("{}{}", last_msg, msg);
-                    } else {
-                        self.messages.push(format!("Assistant: {}", msg));
-                    }
-                } else {
-                    self.messages.push(format!("Assistant: {}", msg));
-                }
+                self.messages_area.insert_str(&msg);
             }
 
             terminal.draw(|frame| self.render(frame))?;
@@ -193,12 +147,11 @@ impl App {
                         if key.kind == KeyEventKind::Press {
                             match key.code {
                                 KeyCode::Enter => self.submit_message(),
-                                KeyCode::Char(to_insert) => self.enter_char(to_insert),
-                                KeyCode::Backspace => self.delete_char(),
-                                KeyCode::Left => self.move_cursor_left(),
-                                KeyCode::Right => self.move_cursor_right(),
                                 KeyCode::Esc => break,
-                                _ => (),
+                                _ => {
+                                    let input = Input::from(event);
+                                    self.input.input(input);
+                                }
                             }
                         }
                     }
@@ -208,39 +161,30 @@ impl App {
         Ok(())
     }
 
-    fn render(&self, frame: &mut Frame) {
+    fn render(&mut self, frame: &mut Frame) {
         let layout = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(3),
-            Constraint::Min(1),
+            Constraint::Length(1), // Help area
+            Constraint::Min(3),    // Input area (dynamic height)
+            Constraint::Min(1),    // Messages area (dynamic height)
         ]);
         let [help_area, input_area, messages_area] = frame.area().layout(&layout);
 
-        let text = Text::from(Line::from("Roro (Press Esc to exit)")).patch_style(Style::default());
-        let help_message = Paragraph::new(text);
+        // Render help message
+        frame.render_widget(
+            ratatui::widgets::Paragraph::new("Roro (Press Esc to exit)"),
+            help_area,
+        );
 
-        let prompt = Paragraph::new(self.input.as_str())
-            .style(Style::default().fg(Color::Yellow))
-            .block(Block::bordered().title("Prompt"))
-            .wrap(Wrap { trim: true });
+        // Render input TextArea
+        self.input.set_cursor_line_style(
+            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+        );
+        frame.render_widget(&self.input, input_area);
 
-        let messages: Vec<ListItem> = self
-            .messages
-            .iter()
-            .map(|m| {
-                let content = Line::from(Span::raw(m.clone()));
-                ListItem::new(content)
-            })
-            .collect();
-        let messages_list = List::new(messages).block(Block::bordered().title("Messages"));
-
-        frame.render_widget(help_message, help_area);
-        frame.render_widget(prompt, input_area);
-        frame.set_cursor_position(Position::new(
-            input_area.x + self.character_index as u16 + 1,
-            input_area.y + 1,
-        ));
-        frame.render_widget(messages_list, messages_area);
+        // Render messages TextArea
+        self.messages_area
+            .set_cursor_line_style(ratatui::style::Style::default());
+        frame.render_widget(&self.messages_area, messages_area);
     }
 }
 
