@@ -1,11 +1,7 @@
-use std::sync::{Arc, Mutex};
+use crate::ollama::OllamaHandler;
 
 use color_eyre::Result;
-use ollama_rs::{
-    Ollama,
-    generation::chat::{ChatMessage, request::ChatMessageRequest},
-    models::ModelOptions,
-};
+use ollama_rs::generation::chat::ChatMessage;
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
@@ -15,51 +11,33 @@ use ratatui::{
 };
 use ratatui_textarea::{Input, TextArea, WrapMode};
 use tokio::sync::mpsc;
-use tokio_stream::StreamExt;
 
 /// App holds the state of the application
-pub struct App {
-    /// TextArea for user input
-    prompt_area: TextArea<'static>,
-    /// TextArea for displaying messages (read-only)
-    chat_area: TextArea<'static>,
-    /// Ollama client
-    ollama: Ollama,
-    /// Shared chat history
-    history: Arc<Mutex<Vec<ChatMessage>>>,
-    /// Sender to communicate with the TUI thread
-    sender: mpsc::Sender<ChatMessage>,
-    /// Receiver to get responses from Ollama
-    receiver: mpsc::Receiver<ChatMessage>,
-    /// Model name for Ollama
-    model_name: String,
-    /// Model options
-    model_options: ModelOptions,
+pub struct TuiApp {
+    pub prompt_area: TextArea<'static>,
+    pub chat_area: TextArea<'static>,
+    pub ollama_handler: OllamaHandler,
+    pub sender: mpsc::Sender<ChatMessage>,
+    pub receiver: mpsc::Receiver<ChatMessage>,
 }
 
-impl App {
-    pub fn new(ollama: Ollama, history: Arc<Mutex<Vec<ChatMessage>>>, model_name: String, model_options: ModelOptions) -> Self {
-        let (sender, receiver) = mpsc::channel(32);
-
-        // Initialize input TextArea
+impl TuiApp {
+    pub fn new(ollama_handler: OllamaHandler, sender: mpsc::Sender<ChatMessage>, receiver: mpsc::Receiver<ChatMessage>) -> Self {
         let mut prompt_area = TextArea::default();
         prompt_area.set_block(Block::bordered().title("Prompt"));
-        prompt_area.set_cursor_line_style(ratatui::style::Style::default());
+        prompt_area.set_cursor_line_style(Style::default().fg(Color::Yellow));
 
-        // Initialize messages TextArea (read-only)
         let mut chat_area = TextArea::default();
         chat_area.set_block(Block::bordered().title("Chat"));
-        chat_area.set_cursor_line_style(ratatui::style::Style::default());
+        chat_area.set_cursor_line_style(Style::default());
+        chat_area.set_cursor_style(Style::default().fg(Color::Reset));
 
         Self {
             prompt_area,
             chat_area,
-            ollama,
-            history,
+            ollama_handler,
             sender,
             receiver,
-            model_name,
-            model_options,
         }
     }
 
@@ -69,38 +47,18 @@ impl App {
             return;
         }
 
-        // Add user message to the messages area
         if !self.chat_area.is_empty() {
             self.chat_area.insert_newline();
         }
-        self.chat_area.insert_str(&format!("You : {}", input));
+        self.chat_area.insert_str(&format!("You ~ {input}"));
+        self.chat_area.insert_newline();
 
-        // Clear input
         self.prompt_area.clear();
 
-        let ollama = self.ollama.clone();
-        let history = self.history.clone();
         let sender = self.sender.clone();
-        let model_name = self.model_name.clone();
-        let model_options = self.model_options.clone();
-
+        let ollama_handler = self.ollama_handler.clone();
         tokio::spawn(async move {
-            let stream = ollama
-                .send_chat_messages_with_history_stream(
-                    history,
-                    ChatMessageRequest::new(model_name, vec![ChatMessage::user(input)])
-                        .tools(vec![])
-                        .options(model_options),
-                )
-                .await;
-
-            if let Ok(mut stream) = stream {
-                while let Some(res) = stream.next().await {
-                    if let Ok(response) = res {
-                        _ = sender.send(response.message).await;
-                    }
-                }
-            }
+            let _ = ollama_handler.send_message(input, sender).await;
         });
     }
 
@@ -112,18 +70,20 @@ impl App {
             while let Ok(msg) = self.receiver.try_recv() {
                 if let Some(thinking_content) = msg.thinking {
                     if !is_thinking {
-                        self.chat_area.insert_str("\nThinking > ");
+                        self.chat_area.insert_str("Thinking > ");
                         is_thinking = true;
                     }
                     self.chat_area.insert_str(&thinking_content);
+                } else {
+                    if !is_assistant_prefix_added {
+                        if is_thinking {
+                            self.chat_area.insert_newline();
+                        }
+                        self.chat_area.insert_str("Assistant > ");
+                        is_assistant_prefix_added = true;
+                    }
+                    self.chat_area.insert_str(&msg.content);
                 }
-
-                if !is_assistant_prefix_added {
-                    self.chat_area.insert_str("\nAssistant > ");
-                    is_assistant_prefix_added = true;
-                }
-
-                self.chat_area.insert_str(&msg.content);
             }
 
             terminal.draw(|frame| self.render(frame))?;
@@ -134,9 +94,9 @@ impl App {
                         if key.kind == KeyEventKind::Press {
                             match key.code {
                                 KeyCode::Enter => {
-                                    self.submit_message();
                                     is_thinking = false;
                                     is_assistant_prefix_added = false;
+                                    self.submit_message();
                                 }
                                 KeyCode::Esc => break,
                                 _ => {
@@ -154,29 +114,17 @@ impl App {
 
     fn render(&mut self, frame: &mut Frame) {
         let layout = Layout::vertical([
-            Constraint::Length(1),       // Help area
-            Constraint::Length(3),       // Prompt area (dynamic height)
-            Constraint::Percentage(100), // Chat area (dynamic height)
+            Constraint::Length(1), // Help area
+            Constraint::Length(3), // Prompt area
+            Constraint::Min(1),    // Chat area
         ]);
         let [help_area, prompt_area, chat_area] = frame.area().layout(&layout);
 
-        // Render input TextArea
-        self.prompt_area.set_wrap_mode(WrapMode::Glyph);
-        self.prompt_area.set_cursor_line_style(Style::default().fg(Color::Yellow));
+        self.prompt_area.set_wrap_mode(WrapMode::Word);
+        self.chat_area.set_wrap_mode(WrapMode::Word);
 
-        // Render messages TextArea
-        self.chat_area.set_wrap_mode(WrapMode::Glyph);
-        self.chat_area.set_cursor_line_style(Style::default());
-
-        // Render help message
         frame.render_widget(Paragraph::new("Roro (Press Esc to exit)"), help_area);
         frame.render_widget(&self.prompt_area, prompt_area);
         frame.render_widget(&self.chat_area, chat_area);
     }
-}
-
-pub fn run(ollama: Ollama, history: Arc<Mutex<Vec<ChatMessage>>>, model_name: String, model_options: ModelOptions) -> Result<()> {
-    color_eyre::install()?;
-    let app = App::new(ollama, history, model_name, model_options);
-    ratatui::run(|terminal| app.run(terminal))
 }
