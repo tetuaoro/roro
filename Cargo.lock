@@ -1307,6 +1307,7 @@ checksum = "f647d8676b95a6b6205e11453c9fac338d73c9cdcc011c94d1ba9c9bfea582cd"
 dependencies = [
  "async-stream",
  "log",
+ "ollama-rs-macros",
  "reqwest",
  "schemars",
  "serde",
@@ -1316,6 +1317,17 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "url",
+]
+
+[[package]]
+name = "ollama-rs-macros"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "40f8f60833ffd6e38fdeb1e4b75c87b22ac5f21847b01be7e4b862923b6bd365"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1799,13 +1811,14 @@ dependencies = [
 name = "roro"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "clap",
  "color-eyre",
  "futures-util",
  "ollama-rs",
  "ratatui",
  "ratatui-textarea",
+ "schemars",
+ "serde",
  "tokio",
  "tokio-stream",
  "url",

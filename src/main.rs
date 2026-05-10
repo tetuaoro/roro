@@ -1,5 +1,6 @@
 mod cli;
 mod ollama;
+mod tools;
 mod tui;
 
 use ollama_rs::{Ollama, models::ModelOptions};
