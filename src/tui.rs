@@ -1,5 +1,3 @@
-use crate::ollama::OllamaHandler;
-
 use color_eyre::Result;
 use ollama_rs::generation::chat::ChatMessage;
 use ratatui::{
@@ -12,17 +10,15 @@ use ratatui::{
 use ratatui_textarea::{Input, TextArea, WrapMode};
 use tokio::sync::mpsc;
 
-/// App holds the state of the application
 pub struct TuiApp {
     pub prompt_area: TextArea<'static>,
     pub chat_area: TextArea<'static>,
-    pub ollama_handler: OllamaHandler,
-    pub sender: mpsc::Sender<ChatMessage>,
+    pub sender: mpsc::Sender<String>,
     pub receiver: mpsc::Receiver<ChatMessage>,
 }
 
 impl TuiApp {
-    pub fn new(ollama_handler: OllamaHandler, sender: mpsc::Sender<ChatMessage>, receiver: mpsc::Receiver<ChatMessage>) -> Self {
+    pub fn new(sender: mpsc::Sender<String>, receiver: mpsc::Receiver<ChatMessage>) -> Self {
         let mut prompt_area = TextArea::default();
         prompt_area.set_block(Block::bordered().title("Prompt"));
         prompt_area.set_cursor_line_style(Style::default().fg(Color::Yellow));
@@ -35,7 +31,6 @@ impl TuiApp {
         Self {
             prompt_area,
             chat_area,
-            ollama_handler,
             sender,
             receiver,
         }
@@ -52,13 +47,11 @@ impl TuiApp {
         }
         self.chat_area.insert_str(&format!("You ~ {input}"));
         self.chat_area.insert_newline();
-
         self.prompt_area.clear();
 
         let sender = self.sender.clone();
-        let ollama_handler = self.ollama_handler.clone();
         tokio::spawn(async move {
-            let _ = ollama_handler.send_message(input, sender).await;
+            let _ = sender.send(input).await;
         });
     }
 
