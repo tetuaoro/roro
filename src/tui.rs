@@ -2,7 +2,7 @@ use color_eyre::Result;
 use ollama_rs::generation::chat::ChatMessage;
 use ratatui::{
     DefaultTerminal, Frame,
-    crossterm::event::{self, Event, KeyCode, KeyEventKind},
+    crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     layout::{Constraint, Layout},
     style::{Color, Style},
     widgets::{Block, Paragraph},
@@ -11,28 +11,42 @@ use ratatui_textarea::{Input, TextArea, WrapMode};
 use tokio::sync::mpsc;
 
 pub struct TuiApp {
-    pub prompt_area: TextArea<'static>,
-    pub chat_area: TextArea<'static>,
-    pub sender: mpsc::Sender<String>,
-    pub receiver: mpsc::Receiver<ChatMessage>,
+    sender: mpsc::Sender<String>,
+    receiver: mpsc::Receiver<ChatMessage>,
+    help_area: Paragraph<'static>,
+    prompt_area: TextArea<'static>,
+    chat_area: TextArea<'static>,
+    layout: Layout,
 }
 
 impl TuiApp {
     pub fn new(sender: mpsc::Sender<String>, receiver: mpsc::Receiver<ChatMessage>) -> Self {
+        let layout = Layout::vertical([
+            Constraint::Length(1), // Help area
+            Constraint::Length(5), // Prompt area
+            Constraint::Min(1),    // Chat area
+        ]);
+
+        let help_area = Paragraph::new("Roro (Press Esc to exit)");
+
         let mut prompt_area = TextArea::default();
+        prompt_area.set_wrap_mode(WrapMode::WordOrGlyph);
         prompt_area.set_block(Block::bordered().title("Prompt"));
         prompt_area.set_cursor_line_style(Style::default().fg(Color::Yellow));
 
         let mut chat_area = TextArea::default();
+        chat_area.set_wrap_mode(WrapMode::WordOrGlyph);
         chat_area.set_block(Block::bordered().title("Chat"));
         chat_area.set_cursor_line_style(Style::default());
         chat_area.set_cursor_style(Style::default().fg(Color::Reset));
 
         Self {
-            prompt_area,
-            chat_area,
             sender,
             receiver,
+            help_area,
+            prompt_area,
+            chat_area,
+            layout,
         }
     }
 
@@ -92,6 +106,26 @@ impl TuiApp {
                                     self.submit_message();
                                 }
                                 KeyCode::Esc => break,
+                                KeyCode::Up => {
+                                    if key.modifiers.contains(KeyModifiers::SHIFT) {
+                                        self.chat_area.scroll((-1, 0));
+                                    } else {
+                                        self.prompt_area.scroll((-1, 0));
+                                    }
+                                }
+                                KeyCode::Down => {
+                                    if key.modifiers.contains(KeyModifiers::SHIFT) {
+                                        self.chat_area.scroll((1, 0));
+                                    } else {
+                                        self.prompt_area.scroll((1, 0));
+                                    }
+                                }
+                                KeyCode::PageUp => {
+                                    self.chat_area.scroll((-10, 0));
+                                }
+                                KeyCode::PageDown => {
+                                    self.chat_area.scroll((10, 0));
+                                }
                                 _ => {
                                     let input = Input::from(event);
                                     self.prompt_area.input(input);
@@ -106,17 +140,8 @@ impl TuiApp {
     }
 
     fn render(&mut self, frame: &mut Frame) {
-        let layout = Layout::vertical([
-            Constraint::Length(1), // Help area
-            Constraint::Length(3), // Prompt area
-            Constraint::Min(1),    // Chat area
-        ]);
-        let [help_area, prompt_area, chat_area] = frame.area().layout(&layout);
-
-        self.prompt_area.set_wrap_mode(WrapMode::Word);
-        self.chat_area.set_wrap_mode(WrapMode::Word);
-
-        frame.render_widget(Paragraph::new("Roro (Press Esc to exit)"), help_area);
+        let [help_area, prompt_area, chat_area] = frame.area().layout(&self.layout);
+        frame.render_widget(&self.help_area, help_area);
         frame.render_widget(&self.prompt_area, prompt_area);
         frame.render_widget(&self.chat_area, chat_area);
     }

@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use ollama_rs::generation::tools::Tool;
 use schemars::JsonSchema;
 use serde::Deserialize;
