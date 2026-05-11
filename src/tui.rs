@@ -5,9 +5,9 @@ use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     layout::{Constraint, Layout},
     style::{Color, Style},
-    widgets::{Block, Paragraph},
+    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
-use ratatui_textarea::{Input, TextArea, WrapMode};
+use ratatui_textarea::{Input, Scrolling, TextArea, WrapMode};
 use tokio::sync::mpsc;
 
 pub struct TuiApp {
@@ -16,6 +16,9 @@ pub struct TuiApp {
     help_area: Paragraph<'static>,
     prompt_area: TextArea<'static>,
     chat_area: TextArea<'static>,
+    chat_area_height: u16,
+    chat_scrollbar_state: ScrollbarState,
+    chat_scrollbar_position: usize,
     layout: Layout,
 }
 
@@ -24,7 +27,7 @@ impl TuiApp {
         let layout = Layout::vertical([
             Constraint::Length(1), // Help area
             Constraint::Length(5), // Prompt area
-            Constraint::Min(1),    // Chat area
+            Constraint::Length(7), // Chat area
         ]);
 
         let help_area = Paragraph::new("Roro (Press Esc to exit)");
@@ -46,6 +49,9 @@ impl TuiApp {
             help_area,
             prompt_area,
             chat_area,
+            chat_area_height: 0,
+            chat_scrollbar_state: ScrollbarState::default(),
+            chat_scrollbar_position: 0,
             layout,
         }
     }
@@ -105,27 +111,20 @@ impl TuiApp {
                                     is_assistant_prefix_added = false;
                                     self.submit_message();
                                 }
+
                                 KeyCode::Esc => break,
-                                KeyCode::Up => {
-                                    if key.modifiers.contains(KeyModifiers::SHIFT) {
-                                        self.chat_area.scroll((-1, 0));
-                                    } else {
-                                        self.prompt_area.scroll((-1, 0));
-                                    }
+
+                                KeyCode::Up if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                                    self.chat_scrollbar_position = self.chat_scrollbar_position.saturating_sub(1)
                                 }
-                                KeyCode::Down => {
-                                    if key.modifiers.contains(KeyModifiers::SHIFT) {
-                                        self.chat_area.scroll((1, 0));
-                                    } else {
-                                        self.prompt_area.scroll((1, 0));
-                                    }
+                                KeyCode::Down if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                                    self.chat_scrollbar_position = self.chat_scrollbar_position.saturating_add(1).min(self.chat_area.lines().len())
                                 }
-                                KeyCode::PageUp => {
-                                    self.chat_area.scroll((-10, 0));
-                                }
-                                KeyCode::PageDown => {
-                                    self.chat_area.scroll((10, 0));
-                                }
+                                KeyCode::Up => self.prompt_area.scroll((-1, 0)),
+                                KeyCode::Down => self.prompt_area.scroll((1, 0)),
+                                KeyCode::PageUp => self.chat_area.scroll(Scrolling::PageUp),
+                                KeyCode::PageDown => self.chat_area.scroll(Scrolling::PageDown),
+
                                 _ => {
                                     let input = Input::from(event);
                                     self.prompt_area.input(input);
@@ -141,8 +140,19 @@ impl TuiApp {
 
     fn render(&mut self, frame: &mut Frame) {
         let [help_area, prompt_area, chat_area] = frame.area().layout(&self.layout);
+
+        self.chat_area_height = chat_area.height;
+
         frame.render_widget(&self.help_area, help_area);
         frame.render_widget(&self.prompt_area, prompt_area);
         frame.render_widget(&self.chat_area, chat_area);
+        frame.render_stateful_widget(
+            Scrollbar::default().orientation(ScrollbarOrientation::VerticalLeft),
+            chat_area,
+            &mut self
+                .chat_scrollbar_state
+                .position(self.chat_scrollbar_position)
+                .content_length(self.chat_area.lines().len()),
+        );
     }
 }
