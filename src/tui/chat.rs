@@ -1,28 +1,24 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget, Wrap},
+    widgets::{Block, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget},
 };
 use std::cell::RefCell;
 
 pub struct ChatView<'a> {
-    border_box: Block<'a>,
-    height: RefCell<u16>,
     scroll: u16,
-    max_scroll: u16,
     content: String,
-    line_count: usize,
+    height: RefCell<u16>,
+    border_box: Block<'a>,
 }
 
 impl<'a> ChatView<'a> {
     pub fn new() -> Self {
         Self {
-            border_box: Block::bordered().title("Chat"),
-            height: RefCell::new(0),
             scroll: 0,
-            max_scroll: 0,
             content: String::new(),
-            line_count: 0,
+            height: RefCell::new(0),
+            border_box: Block::bordered().title("Chat"),
         }
     }
 
@@ -30,21 +26,11 @@ impl<'a> ChatView<'a> {
         self.content.is_empty()
     }
     pub fn insert_newline(&mut self) {
-        self.content.push('\n');
-        self.line_count += 1;
-        self.update_max_scroll();
+        self.content.push_str("  \n");
     }
 
     pub fn insert_str(&mut self, s: &str) {
         self.content.push_str(s);
-        let new_lines = s.chars().filter(|&c| c == '\n').count();
-        self.line_count += new_lines;
-        self.update_max_scroll();
-    }
-
-    fn update_max_scroll(&mut self) {
-        self.max_scroll = (self.line_count.saturating_sub(*self.height.borrow() as usize)) as u16;
-        self.scroll = self.scroll.min(self.max_scroll);
     }
 
     pub fn scroll_up(&mut self) {
@@ -52,7 +38,7 @@ impl<'a> ChatView<'a> {
     }
 
     pub fn scroll_down(&mut self) {
-        self.scroll = (self.scroll + 1).min(self.max_scroll);
+        self.scroll = self.scroll.saturating_add(1);
     }
 
     pub fn scroll_page_up(&mut self) {
@@ -60,16 +46,7 @@ impl<'a> ChatView<'a> {
     }
 
     pub fn scroll_page_down(&mut self) {
-        self.scroll = self.scroll.saturating_add(*self.height.borrow()).min(self.max_scroll);
-    }
-
-    fn get_visible_lines(&self) -> String {
-        self.content
-            .lines()
-            .skip(self.scroll as usize)
-            .take(*self.height.borrow() as usize)
-            .collect::<Vec<_>>()
-            .join("\n")
+        self.scroll = self.scroll.saturating_add(*self.height.borrow());
     }
 }
 
@@ -85,17 +62,16 @@ impl Widget for &ChatView<'_> {
             height: area.height.saturating_sub(2), // sub border
         };
 
-        *self.height.borrow_mut() = inner_rect.height;
-
-        let input = self.get_visible_lines();
+        let text_wrap = textwrap::wrap(&self.content, inner_rect.width as usize);
+        let input = text_wrap.join("  \n");
         let text = tui_markdown::from_str(&input);
-        let paragraph = Paragraph::new(text.clone()).wrap(Wrap { trim: true });
 
+        let height = text.lines.len().saturating_sub(inner_rect.height as usize);
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
-        let mut scrollbar_state = ScrollbarState::new(self.max_scroll as usize).position(self.scroll as usize);
+        let mut scrollbar_state = ScrollbarState::new(height).position((self.scroll as usize).min(height));
 
         self.border_box.clone().render(area, buf);
-        paragraph.render(inner_rect, buf);
+        text.render(inner_rect, buf);
         scrollbar.render(inner_rect, buf, &mut scrollbar_state);
     }
 }
