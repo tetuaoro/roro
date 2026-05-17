@@ -10,6 +10,7 @@ tokio = "1.52.3"
 ratatui = "0.30.0"
 schemars = "1.2.1"
 color-eyre = "0.6.5"
+tui-markdown = "0.3.7"
 ratatui-textarea = "0.9.1"
 
 serde = { version = "1.0.228", features = ["derive"] }

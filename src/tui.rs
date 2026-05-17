@@ -55,8 +55,7 @@ impl TuiApp {
         if !self.chat_view.is_empty() {
             self.chat_view.insert_newline();
         }
-        self.chat_view.insert_str(&format!("You ~ {input}"));
-        self.chat_view.insert_newline();
+        self.chat_view.insert_str(&format!("**You ~** {input}"));
         self.prompt_view.clear();
 
         let sender = self.sender.clone();
@@ -67,23 +66,26 @@ impl TuiApp {
 
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         let mut is_thinking = false;
-        let mut is_assistant_prefix_added = false;
+        let mut is_assistant = false;
 
         loop {
             while let Ok(msg) = self.receiver.try_recv() {
                 if let Some(thinking_content) = msg.thinking {
                     if !is_thinking {
-                        self.chat_view.insert_str("Thinking > ");
+                        self.chat_view.insert_newline();
+                        self.chat_view.insert_str("**Thinking >** ");
                         is_thinking = true;
                     }
-                    self.chat_view.last_mut().map(|s| s.push_str(&thinking_content));
+
+                    self.chat_view.insert_str(&thinking_content);
                 } else {
-                    if !is_assistant_prefix_added {
-                        self.chat_view.insert_str("Assistant > ");
-                        is_assistant_prefix_added = true;
+                    if !is_assistant {
+                        self.chat_view.insert_newline();
+                        self.chat_view.insert_str("**Assistant >** ");
+                        is_assistant = true;
                     }
 
-                    self.chat_view.last_mut().map(|s| s.push_str(&msg.content));
+                    self.chat_view.insert_str(&msg.content);
                 }
             }
 
@@ -96,7 +98,7 @@ impl TuiApp {
                             match key.code {
                                 KeyCode::Enter => {
                                     is_thinking = false;
-                                    is_assistant_prefix_added = false;
+                                    is_assistant = false;
                                     self.submit_message();
                                 }
 
