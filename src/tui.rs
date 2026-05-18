@@ -12,7 +12,7 @@ use ratatui::{
 use ratatui_textarea::{Input, TextArea, WrapMode};
 use tokio::sync::mpsc;
 
-pub struct TuiApp {
+pub struct App {
     sender: mpsc::Sender<String>,
     receiver: mpsc::Receiver<ChatMessage>,
     help_view: Paragraph<'static>,
@@ -21,7 +21,7 @@ pub struct TuiApp {
     layout: Layout,
 }
 
-impl TuiApp {
+impl App {
     pub fn new(sender: mpsc::Sender<String>, receiver: mpsc::Receiver<ChatMessage>) -> Self {
         let layout = Layout::vertical([
             Constraint::Length(1), // Help area
@@ -78,15 +78,15 @@ impl TuiApp {
                     }
 
                     self.chat_view.insert_str(&thinking_content);
-                } else {
-                    if !is_assistant {
-                        self.chat_view.insert_newline();
-                        self.chat_view.insert_str("**Assistant >** ");
-                        is_assistant = true;
-                    }
-
-                    self.chat_view.insert_str(&msg.content);
                 }
+
+                if !is_assistant {
+                    self.chat_view.insert_newline();
+                    self.chat_view.insert_str("**Assistant >** ");
+                    is_assistant = true;
+                }
+
+                self.chat_view.insert_str(&msg.content);
             }
 
             terminal.draw(|frame| self.render(frame))?;

@@ -3,7 +3,7 @@ use url::Url;
 
 #[derive(Parser)]
 #[command(version, about, author)]
-pub enum RoroCli {
+pub enum Cli {
     Start(Start),
 }
 
@@ -22,8 +22,8 @@ pub struct Start {
     pub num_thread: u32,
 }
 
-impl RoroCli {
+impl Cli {
     pub fn build() -> Self {
-        RoroCli::parse()
+        Self::parse()
     }
 }
