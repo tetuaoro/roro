@@ -18,17 +18,16 @@ async fn main() -> color_eyre::Result<()> {
     let (tui_sender, ollama_receiver) = mpsc::channel(32);
     let (ollama_sender, tui_receiver) = mpsc::channel(32);
 
-    let ollama = ollama::Ollama::new(
-        ollama,
-        cli_start.model_name,
-        model_options,
-        ollama_receiver,
-        ollama_sender,
-    );
+    let ollama = ollama::Ollama::new(ollama, cli_start.model_name, model_options, ollama_receiver, ollama_sender);
+
+    let history = ollama.history();
 
     let app = tui::App::new(tui_sender, tui_receiver);
     tokio::spawn(ollama.run());
     ratatui::run(|terminal| app.run(terminal))?;
+
+    #[cfg(debug_assertions)]
+    let _ = dbg!(history);
 
     Ok(())
 }

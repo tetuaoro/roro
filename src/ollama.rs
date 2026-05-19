@@ -1,12 +1,31 @@
-use ollama_rs::{Ollama as OllamaRs, coordinator::Coordinator, generation::chat::ChatMessage, models::ModelOptions};
+use crate::tools;
+use ollama_rs::{Ollama as OllamaRs, coordinator::Coordinator, generation::chat::ChatMessage, history::ChatHistory, models::ModelOptions};
+use std::{
+    borrow::Cow,
+    sync::{Arc, Mutex},
+};
 use tokio::sync::mpsc;
 
-use crate::tools;
+struct CustomHistory {
+    messages: Arc<Mutex<Vec<ChatMessage>>>,
+}
+
+impl ChatHistory for CustomHistory {
+    fn push(&mut self, message: ChatMessage) {
+        self.messages.lock().unwrap().push(message);
+    }
+
+    fn messages(&self) -> Cow<'_, [ChatMessage]> {
+        let messages = self.messages.lock().unwrap();
+        Cow::Owned(messages.clone())
+    }
+}
 
 pub struct Ollama {
     receiver: mpsc::Receiver<String>,
     sender: mpsc::Sender<ChatMessage>,
-    coordinator: Coordinator<Vec<ChatMessage>>,
+    coordinator: Coordinator<CustomHistory>,
+    history: Arc<Mutex<Vec<ChatMessage>>>,
 }
 
 impl Ollama {
@@ -17,14 +36,19 @@ impl Ollama {
         receiver: mpsc::Receiver<String>,
         sender: mpsc::Sender<ChatMessage>,
     ) -> Self {
-        let coordinator = Coordinator::new(ollama, model_name, vec![])
+        let history = Arc::new(Mutex::new(Vec::new()));
+        let custom_history = CustomHistory { messages: history.clone() };
+
+        let coordinator = Coordinator::new(ollama, model_name, custom_history)
             .options(model_options)
+            .add_tool(tools::ObscuraTool::new())
             .add_tool(tools::BashExecutor::new());
 
         Self {
             sender,
             receiver,
             coordinator,
+            history,
         }
     }
 
@@ -34,5 +58,9 @@ impl Ollama {
                 _ = self.sender.send(response.message).await;
             }
         }
+    }
+
+    pub fn history(&self) -> Arc<Mutex<Vec<ChatMessage>>> {
+        self.history.clone()
     }
 }
